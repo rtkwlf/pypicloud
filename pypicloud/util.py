@@ -1,4 +1,6 @@
 """ Utilities """
+import copy
+import json
 import posixpath
 import re
 import time
@@ -6,8 +8,10 @@ import time
 import distlib.locators
 import logging
 import six
+from distlib.database import Distribution
 from distlib.locators import Locator, SimpleScrapingLocator
-from distlib.util import split_filename
+from distlib.metadata import Metadata
+from distlib.util import split_filename, urljoin, ensure_slash
 from distlib.wheel import Wheel
 from six.moves.urllib.parse import urlparse  # pylint: disable=F0401,E0611
 
@@ -69,6 +73,82 @@ class BetterScrapingLocator(SimpleScrapingLocator):
             "pypi.python.org" in t.netloc,
             filename,
         )
+
+
+class EnhancedPyPIJSONLocator(Locator):
+    """
+    better metadata support TODO(jjekir) update docstring
+
+    Original docstring for reference:
+
+        This locator uses PyPI's JSON interface. It's very limited in functionality
+        and probably not worth using.
+    """
+
+    def __init__(self, url, **kwargs):
+        super(EnhancedPyPIJSONLocator, self).__init__(**kwargs)
+        self.base_url = ensure_slash(url)
+
+    def get_distribution_names(self):
+        """
+        Return all the distribution names known to this locator.
+        """
+        raise NotImplementedError('Not available from this locator')
+
+    def _get_project(self, name):
+        from distlib.locators import quote #, text_type
+
+        result = {'urls': {}, 'digests': {}}
+        url = urljoin(self.base_url, '%s/json' % quote(name))
+        try:
+            resp = self.opener.open(url)
+            data = resp.read().decode() # for now
+            d = json.loads(data)
+            d['info'].update({'metadata_version': '2.0'})
+            data2 = copy.deepcopy(d['info'])
+            md = Metadata(scheme=self.scheme, mapping=data2)
+            dist = Distribution(md)
+            dist.locator = self
+            urls = d['urls']
+            result[md.version] = dist
+            for info in d['urls']:
+                url = info['url']
+                dist.download_urls.add(url)
+                dist.digests[url] = self._get_digest(info)
+                result['urls'].setdefault(md.version, set()).add(url)
+                result['digests'][url] = self._get_digest(info)
+            # Now get other releases
+            for version, infos in d['releases'].items():
+                if version == md.version:
+                    continue    # already done
+                data3 = copy.deepcopy(d['info'])
+                data3.update({'version': version})
+                if len(infos)>0:
+                    data3.update({'requires_python': infos[0].get('requires_python')})
+                # TODO(jjekir) python_version?
+                omd = Metadata(scheme=self.scheme, mapping=data3)
+                odist = Distribution(omd)
+                odist.locator = self
+                result[version] = odist
+                for info in infos:
+                    url = info['url']
+                    odist.download_urls.add(url)
+                    odist.digests[url] = self._get_digest(info)
+                    result['urls'].setdefault(version, set()).add(url)
+                    result['digests'][url] = self._get_digest(info)
+#            for info in urls:
+#                md.source_url = info['url']
+#                dist.digest = self._get_digest(info)
+#                dist.locator = self
+#                for info in urls:
+#                    url = info['url']
+#                    result['urls'].setdefault(md.version, set()).add(url)
+#                    result['digests'][url] = self._get_digest(info)
+        except Exception as e:
+            raise
+            # self.errors.put(text_type(e))
+            # logger.exception('JSON fetch failed: %s', e)
+        return result
 
 
 # Distlib checks if wheels are compatible before returning them.
