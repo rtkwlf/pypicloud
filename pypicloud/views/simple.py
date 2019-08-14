@@ -144,7 +144,7 @@ def create_template_dict_entry(url, python_requires=None):
 
 def package_to_template_dict_entry(request, package):
     """ Convert a package to a dict entry used by the template """
-    return create_template_dict_entry(package.get_url(request), package.python_requires)
+    return create_template_dict_entry(package.get_url(request), getattr(package, 'python_requires', None))
 
 
 def get_fallback_packages(request, package_name, redirect=True):
