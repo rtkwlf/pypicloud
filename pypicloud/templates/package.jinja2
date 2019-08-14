@@ -4,8 +4,9 @@
   <title>Package Index</title>
 </head>
 <body>
-  {% for filename, url in pkgs|dictsort %}
-    <a href="{{ url }}">{{ filename }}</a><br>
+  {% for filename, pkg_data in pkgs|dictsort %}
+  {%- set python_requires_urlencoded = pkg_data.python_requires|escape if pkg_data.python_requires %}
+    <a href="{{ pkg_data.url }}"{{ ' data-requires-python="{}"'.format(python_requires_urlencoded)|safe if python_requires_urlencoded -}}>{{ filename }}</a><br>
   {%- endfor %}
 </body>
 </html>
