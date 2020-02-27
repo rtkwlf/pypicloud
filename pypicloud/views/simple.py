@@ -136,6 +136,20 @@ def package_versions_json(context, request):
     return response
 
 
+def create_template_dict_entry(url, python_requires=None):
+    """ Create a dict entry used by the template, given the required information """
+    result = {}
+    result['url'] = url
+    if python_requires:
+        result['python_requires'] = python_requires
+    return result
+
+
+def package_to_template_dict_entry(request, package):
+    """ Convert a package to a dict entry used by the template """
+    return create_template_dict_entry(package.get_url(request), getattr(package, 'python_requires', None))
+
+
 def get_fallback_packages(request, package_name, redirect=True):
     """ Get all package versions for a package from the fallback_base_url """
     # TODO: does this need to filter for python version? - probably not
@@ -149,7 +163,7 @@ def get_fallback_packages(request, package_name, redirect=True):
             filename = posixpath.basename(url)
             if not redirect:
                 url = request.app_url("api", "package", dist.name, filename)
-            pkgs[filename] = url
+            pkgs[filename] = create_template_dict_entry(url, dist.metadata.dictionary.get('requires_python'))
     return pkgs
 
 
@@ -158,7 +172,7 @@ def packages_to_dict(request, packages):
     # this probably needs to change to include the metadata
     pkgs = {}
     for package in packages:
-        pkgs[package.filename] = package.get_url(request)
+        pkgs[package.filename] = package_to_template_dict_entry(request, package)
     return pkgs
 
 

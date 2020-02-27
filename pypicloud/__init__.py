@@ -9,7 +9,7 @@ from pyramid_beaker import session_factory_from_settings
 from six.moves.urllib.parse import urlencode  # pylint: disable=F0401,E0611
 
 from .route import Root
-from .util import BetterScrapingLocator
+from .util import EnhancedPyPIJSONLocator
 
 
 __version__ = "1.0.13"
@@ -41,7 +41,7 @@ def _fallback_simple(request):
 
 def _locator(request):
     """ Get the scraping locator to find packages from the fallback site """
-    return BetterScrapingLocator(request.fallback_simple)
+    return EnhancedPyPIJSONLocator("https://pypi.org/pypi/")
 
 
 def _add_postfork_hook(config, hook):
