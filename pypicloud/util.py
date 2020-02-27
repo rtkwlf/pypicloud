@@ -47,6 +47,7 @@ def normalize_name(name):
 
 
 class BetterScrapingLocator(SimpleScrapingLocator):
+    # this is where the magic happens!
 
     """ Layer on top of SimpleScrapingLocator that allows preferring wheels """
 

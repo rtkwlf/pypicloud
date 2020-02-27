@@ -34,6 +34,7 @@ class Package(object):
     """
 
     def __init__(
+        # add python_requires here as an arg, dict probably not a good idea
         self, name, version, filename, last_modified=None, summary=None, **kwargs
     ):
         self.name = normalize_name(name)
@@ -84,6 +85,7 @@ class Package(object):
             "name": self.name,
             "filename": self.filename,
             "last_modified": self.last_modified,
+            # add metadata here
             "version": self.version,
             "url": self.get_url(request),
             "summary": self.summary,
@@ -92,6 +94,7 @@ class Package(object):
     def search_summary(self):
         """ Data to return from a pip search """
         return {
+            # add metadata here?
             "name": self.name,
             "summary": self.summary or "",  # May be None
             "version": self.version,

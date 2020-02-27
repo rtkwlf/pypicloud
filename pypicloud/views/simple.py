@@ -21,6 +21,7 @@ LOG = logging.getLogger(__name__)
 @argify
 def upload(request, content, name=None, version=None, summary=None):
     """ Handle update commands """
+    # also need to fix this?
     action = request.param(":action", "file_upload")
     # Direct uploads from the web UI go here, and don't have a name/version
     if name is None or version is None:
@@ -52,6 +53,7 @@ def search(request, criteria, query_type):
     endpoint (configured as /pypi/) that specify the method "search".
 
     """
+    # check if this needs to change
     filtered = []
     for pkg in request.db.search(criteria, query_type):
         if request.access.has_permission(pkg.name, "read"):
@@ -114,6 +116,7 @@ def package_versions(context, request):
 )
 def package_versions_json(context, request):
     """ Render the package versions in JSON format """
+    # does this need to filter for python version?
     pkgs = _package_versions(context, request)
     if not isinstance(pkgs, dict):
         return pkgs
@@ -135,6 +138,7 @@ def package_versions_json(context, request):
 
 def get_fallback_packages(request, package_name, redirect=True):
     """ Get all package versions for a package from the fallback_base_url """
+    # TODO: does this need to filter for python version? - probably not
     dists = request.locator.get_project(package_name)
     pkgs = {}
     if not request.access.has_permission(package_name, "fallback"):
@@ -151,6 +155,7 @@ def get_fallback_packages(request, package_name, redirect=True):
 
 def packages_to_dict(request, packages):
     """ Convert a list of packages to a dict used by the template """
+    # this probably needs to change to include the metadata
     pkgs = {}
     for package in packages:
         pkgs[package.filename] = package.get_url(request)
