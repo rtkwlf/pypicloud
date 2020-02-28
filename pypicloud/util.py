@@ -6,6 +6,7 @@ import re
 import time
 
 import distlib.locators
+import distlib.metadata
 import logging
 import six
 from distlib.database import Distribution
@@ -14,6 +15,13 @@ from distlib.metadata import Metadata
 from distlib.util import split_filename, urljoin, ensure_slash
 from distlib.wheel import Wheel
 from six.moves.urllib.parse import urlparse  # pylint: disable=F0401,E0611
+
+
+# this is quite dirty, but the old implementation scraping the simple API wasn't doing any validation
+# anyways (it wasn't loading data into the `Metadata` class).
+# this is needed because package versions don't necessarily follow the recommended PEP version scheme and this
+# was causing the version regex to fail
+distlib.metadata.Metadata._validate_mapping = lambda *args, **kwargs: True
 
 
 LOG = logging.getLogger(__name__)
@@ -51,7 +59,6 @@ def normalize_name(name):
 
 
 class BetterScrapingLocator(SimpleScrapingLocator):
-    # this is where the magic happens!
 
     """ Layer on top of SimpleScrapingLocator that allows preferring wheels """
 
@@ -124,7 +131,10 @@ class EnhancedPyPIJSONLocator(Locator):
                     continue    # already done
                 data3 = copy.deepcopy(d['info'])
                 data3.update({'version': version})
-                if len(infos)>0:
+
+                # dynamoDB doesn't support empty strings, so don't put it in the data
+                # unless it's truthy
+                if len(infos)>0 and infos[0].get('requires_python'):
                     data3.update({'requires_python': infos[0].get('requires_python')})
                 # TODO(jjekir) python_version?
                 omd = Metadata(scheme=self.scheme, mapping=data3)

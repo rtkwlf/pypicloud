@@ -21,7 +21,6 @@ LOG = logging.getLogger(__name__)
 @argify
 def upload(request, content, name=None, version=None, summary=None):
     """ Handle update commands """
-    # also need to fix this?
     action = request.param(":action", "file_upload")
     # Direct uploads from the web UI go here, and don't have a name/version
     if name is None or version is None:
@@ -32,6 +31,7 @@ def upload(request, content, name=None, version=None, summary=None):
         if not request.access.has_permission(name, "write"):
             return request.forbid()
         try:
+            # will not fix this for now
             return request.db.upload(
                 content.filename,
                 content.file,
@@ -53,7 +53,6 @@ def search(request, criteria, query_type):
     endpoint (configured as /pypi/) that specify the method "search".
 
     """
-    # check if this needs to change
     filtered = []
     for pkg in request.db.search(criteria, query_type):
         if request.access.has_permission(pkg.name, "read"):
@@ -116,7 +115,6 @@ def package_versions(context, request):
 )
 def package_versions_json(context, request):
     """ Render the package versions in JSON format """
-    # does this need to filter for python version?
     pkgs = _package_versions(context, request)
     if not isinstance(pkgs, dict):
         return pkgs
@@ -136,23 +134,26 @@ def package_versions_json(context, request):
     return response
 
 
-def create_template_dict_entry(url, python_requires=None):
+def create_template_dict_entry(url, requires_python):
     """ Create a dict entry used by the template, given the required information """
     result = {}
     result['url'] = url
-    if python_requires:
-        result['python_requires'] = python_requires
+    if requires_python:
+        result['requires_python'] = requires_python
     return result
 
 
 def package_to_template_dict_entry(request, package):
     """ Convert a package to a dict entry used by the template """
-    return create_template_dict_entry(package.get_url(request), getattr(package, 'python_requires', None))
+    # print(package.data)
+    # unfortunately, in the case that we have an old DB without the metadata, or we regenerate it
+    # on startup from the backend storage, there is no metadata available, and thus
+    # requires_python may not be present
+    return create_template_dict_entry(package.get_url(request), package.data.get('requires_python'))
 
 
 def get_fallback_packages(request, package_name, redirect=True):
     """ Get all package versions for a package from the fallback_base_url """
-    # TODO: does this need to filter for python version? - probably not
     dists = request.locator.get_project(package_name)
     pkgs = {}
     if not request.access.has_permission(package_name, "fallback"):
@@ -169,7 +170,6 @@ def get_fallback_packages(request, package_name, redirect=True):
 
 def packages_to_dict(request, packages):
     """ Convert a list of packages to a dict used by the template """
-    # this probably needs to change to include the metadata
     pkgs = {}
     for package in packages:
         pkgs[package.filename] = package_to_template_dict_entry(request, package)
@@ -196,6 +196,19 @@ def _redirect(context, request):
         )
 
     return HTTPFound(location=redirect_url)
+
+
+def update_db_entry_with_metadata(request, packages, filename, metadata):
+    # this is a hack. we have a cache built prior to the metadata being stored, or we
+    # rebuilt the cache from storage and don't have metadata. so we should
+    # update our local copy of it
+    for package in packages:
+        if package.filename == filename:
+            LOG.debug('updating metadata for package %s in DB', package.filename)
+            package.data = metadata
+            request.db.save(package)
+            return
+    LOG.error('Could not find entry for %s in cache. Metadata will not be updated', filename)
 
 
 def _simple_redirect(context, request):
@@ -228,8 +241,8 @@ def _simple_redirect_always_show(context, request):
             pkgs = get_fallback_packages(request, context.name)
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls
-            for filename, url in six.iteritems(stored_pkgs):
-                pkgs[filename] = url
+            for filename, metadata in six.iteritems(stored_pkgs):
+                pkgs[filename]['url'] = metadata['url']
             return _pkg_response(pkgs)
     else:
         return _redirect(context, request)
@@ -276,17 +289,23 @@ def _simple_cache_always_show(context, request):
                 pkgs = get_fallback_packages(request, context.name)
                 stored_pkgs = packages_to_dict(request, packages)
                 # Overwrite existing package urls
-                for filename, url in six.iteritems(stored_pkgs):
-                    pkgs[filename] = url
+                for filename, metadata in six.iteritems(stored_pkgs):
+                    pkgs[filename]['url'] = metadata['url']
                 return _pkg_response(pkgs)
             else:
                 return request.request_login()
         else:
+            print('aaaaaaaaaaaaaaaaa')
             pkgs = get_fallback_packages(request, context.name, False)
+            # print(pkgs['setuptools-45.0.0-py2.py3-none-any.whl'])
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls
-            for filename, url in six.iteritems(stored_pkgs):
-                pkgs[filename] = url
+            print(stored_pkgs)
+            for filename, metadata in six.iteritems(stored_pkgs):
+                # the prior (and new) logic assumes the fallback URL didn't change
+                pkgs[filename]['url'] = metadata['url']
+                if pkgs[filename] != metadata:
+                    update_db_entry_with_metadata(request, packages, filename, pkgs[filename])
             return _pkg_response(pkgs)
     else:
         if not request.access.can_update_cache():

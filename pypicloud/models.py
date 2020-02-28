@@ -16,6 +16,8 @@ class Package(object):
     """
     Representation of a versioned package
 
+    # TODO: add argstring
+
     Parameters
     ----------
     name : str
@@ -34,8 +36,7 @@ class Package(object):
     """
 
     def __init__(
-        # add python_requires here as an arg, dict probably not a good idea
-        self, name, version, filename, last_modified=None, summary=None, python_requires=None, **kwargs
+        self, name, version, filename, last_modified=None, summary=None, **kwargs
     ):
         self.name = normalize_name(name)
         self.version = version
@@ -46,7 +47,6 @@ class Package(object):
         else:
             self.last_modified = datetime.utcnow()
         self.summary = summary
-        self.python_requires = python_requires
         self.data = kwargs
 
     def get_url(self, request):
