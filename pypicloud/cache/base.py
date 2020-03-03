@@ -112,6 +112,10 @@ class ICache(object):
         if old_pkg is not None and not self.allow_overwrite:
             raise ValueError("Package '%s' already exists!" % filename)
 
+        if not metadata.get('requires_python'):
+            # dynamoDB doesn't support empty strings
+            metadata.pop('requires_python', None)
+
         new_pkg = self.package_class(name, version, filename, summary=summary, **(metadata or {}))
         self.storage.upload(new_pkg, data)
         self.save(new_pkg)

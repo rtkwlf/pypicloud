@@ -199,12 +199,16 @@ def _redirect(context, request):
 
 
 def update_db_entry_with_metadata(request, packages, filename, metadata):
-    # this is a hack. we have a cache built prior to the metadata being stored, or we
+    # this is a hack. we have a cache built prior to the metadata being used, or we
     # rebuilt the cache from storage and don't have metadata. so we should
     # update our local copy of it
     for package in packages:
         if package.filename == filename:
-            LOG.debug('updating metadata for package %s in DB', package.filename)
+            LOG.debug('updating metadata in DB for %s', package.filename)
+            if not metadata.get('requires_python'):
+                # dynamoDB doesn't support empty strings
+                metadata.pop('requires_python', None)
+
             package.data = metadata
             request.db.save(package)
             return
@@ -289,8 +293,8 @@ def _simple_cache_always_show(context, request):
                 pkgs = get_fallback_packages(request, context.name)
                 stored_pkgs = packages_to_dict(request, packages)
                 # Overwrite existing package urls
-                for filename, metadata in six.iteritems(stored_pkgs):
-                    pkgs[filename]['url'] = metadata['url']
+                for filename, stored_metadata in six.iteritems(stored_pkgs):
+                    pkgs[filename]['url'] = stored_metadata['url']
                 return _pkg_response(pkgs)
             else:
                 return request.request_login()
@@ -299,12 +303,12 @@ def _simple_cache_always_show(context, request):
             pkgs = get_fallback_packages(request, context.name, False)
             # print(pkgs['setuptools-45.0.0-py2.py3-none-any.whl'])
             stored_pkgs = packages_to_dict(request, packages)
-            # Overwrite existing package urls
+            # Overwrite existing package urls and update DB with metadata if not already
             print(stored_pkgs)
-            for filename, metadata in six.iteritems(stored_pkgs):
-                # the prior (and new) logic assumes the fallback URL didn't change
-                pkgs[filename]['url'] = metadata['url']
-                if pkgs[filename] != metadata:
+            for filename, stored_metadata in six.iteritems(stored_pkgs):
+                pkgs[filename]['url'] = stored_metadata['url']
+                if pkgs[filename] != stored_metadata:
+                    print('stored_metadata: %s, metadata: %s' % (stored_metadata, pkgs[filename]))
                     update_db_entry_with_metadata(request, packages, filename, pkgs[filename])
             return _pkg_response(pkgs)
     else:

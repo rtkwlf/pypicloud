@@ -109,7 +109,9 @@ def download_package(context, request):
         LOG.info("Caching %s from %s", context.filename, request.fallback_simple)
 
         # we only cache the requires_python field
-        metadata = dict(requires_python=dist.metadata.dictionary['requires_python'])
+        metadata = {
+            'requires_python' : dist.metadata.dictionary.get('requires_python')
+        }
         package, data = fetch_and_cache_dist(request, dist.name, source_url, package_metadata=metadata)
         disp = CONTENT_DISPOSITION.tuples(filename=package.filename)
         request.response.headers.update(disp)

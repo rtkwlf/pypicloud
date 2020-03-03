@@ -132,11 +132,11 @@ class EnhancedPyPIJSONLocator(Locator):
                 data3 = copy.deepcopy(d['info'])
                 data3.update({'version': version})
 
-                # dynamoDB doesn't support empty strings, so don't put it in the data
-                # unless it's truthy
-                if len(infos)>0 and infos[0].get('requires_python'):
-                    data3.update({'requires_python': infos[0].get('requires_python')})
-                # TODO(jjekir) python_version?
+                data3.pop('requires_python', None)
+                if len(infos) > 0:
+                    # this assumes all packages of the same version have the same requires_python metadata
+                    data3.update({'requires_python': infos[0]['requires_python']})
+
                 omd = Metadata(scheme=self.scheme, mapping=data3)
                 odist = Distribution(omd)
                 odist.locator = self
