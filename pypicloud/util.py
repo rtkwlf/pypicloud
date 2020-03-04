@@ -134,7 +134,8 @@ class EnhancedPyPIJSONLocator(Locator):
 
                 data3.pop('requires_python', None)
                 if len(infos) > 0:
-                    # this assumes all packages of the same version have the same requires_python metadata
+                    # this assumes all packages of the same version have the same requires_python metadata,
+                    # which appears to be a valid assumption from a number of packages that were checked
                     data3.update({'requires_python': infos[0]['requires_python']})
 
                 omd = Metadata(scheme=self.scheme, mapping=data3)

@@ -84,7 +84,6 @@ def fetch_and_cache_dist(request, package_name, package_url, package_metadata):
 @view_config(context=APIPackageFileResource, request_method="GET", permission="read")
 def download_package(context, request):
     """ Download package, or redirect to the download link """
-    LOG.info('sfgsfdgdfs')
     package = request.db.fetch(context.filename)
     if not package:
         if request.registry.fallback != "cache":

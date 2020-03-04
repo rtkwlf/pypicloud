@@ -145,7 +145,6 @@ def create_template_dict_entry(url, requires_python):
 
 def package_to_template_dict_entry(request, package):
     """ Convert a package to a dict entry used by the template """
-    # print(package.data)
     # unfortunately, in the case that we have an old DB without the metadata, or we regenerate it
     # on startup from the backend storage, there is no metadata available, and thus
     # requires_python may not be present
@@ -299,16 +298,12 @@ def _simple_cache_always_show(context, request):
             else:
                 return request.request_login()
         else:
-            print('aaaaaaaaaaaaaaaaa')
             pkgs = get_fallback_packages(request, context.name, False)
-            # print(pkgs['setuptools-45.0.0-py2.py3-none-any.whl'])
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls and update DB with metadata if not already
-            print(stored_pkgs)
             for filename, stored_metadata in six.iteritems(stored_pkgs):
                 pkgs[filename]['url'] = stored_metadata['url']
                 if pkgs[filename] != stored_metadata:
-                    print('stored_metadata: %s, metadata: %s' % (stored_metadata, pkgs[filename]))
                     update_db_entry_with_metadata(request, packages, filename, pkgs[filename])
             return _pkg_response(pkgs)
     else:
