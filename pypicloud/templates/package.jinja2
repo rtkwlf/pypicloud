@@ -5,8 +5,8 @@
 </head>
 <body>
   {% for filename, pkg_data in pkgs|dictsort %}
-  {%- set python_requires_urlencoded = pkg_data.python_requires|escape if pkg_data.python_requires %}
-    <a href="{{ pkg_data.url }}"{{ ' data-requires-python="{}"'.format(python_requires_urlencoded)|safe if python_requires_urlencoded -}}>{{ filename }}</a><br>
+  {%- set requires_python_urlencoded = pkg_data.requires_python|escape if pkg_data.requires_python %}
+    <a href="{{ pkg_data.url }}"{{ ' data-requires-python="{}"'.format(requires_python_urlencoded)|safe if requires_python_urlencoded -}}>{{ filename }}</a><br>
   {%- endfor %}
 </body>
 </html>

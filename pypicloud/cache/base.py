@@ -74,7 +74,7 @@ class ICache(object):
         for pkg in packages:
             self.save(pkg)
 
-    def upload(self, filename, data, name=None, version=None, summary=None):
+    def upload(self, filename, data, name=None, version=None, summary=None, metadata=None):
         """
         Save this package to the storage mechanism and to the cache
 
@@ -111,7 +111,12 @@ class ICache(object):
         old_pkg = self.fetch(filename)
         if old_pkg is not None and not self.allow_overwrite:
             raise ValueError("Package '%s' already exists!" % filename)
-        new_pkg = self.package_class(name, version, filename, summary=summary)
+
+        if not metadata.get('requires_python'):
+            # dynamoDB doesn't support empty strings
+            metadata.pop('requires_python', None)
+
+        new_pkg = self.package_class(name, version, filename, summary=summary, **(metadata or {}))
         self.storage.upload(new_pkg, data)
         self.save(new_pkg)
         return new_pkg

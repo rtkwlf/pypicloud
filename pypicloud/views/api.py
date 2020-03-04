@@ -68,14 +68,17 @@ def package_versions(context, request):
     }
 
 
-def fetch_dist(request, package_name, package_url):
+def fetch_and_cache_dist(request, package_name, package_url, package_metadata):
     """ Fetch a Distribution and upload it to the storage backend """
     filename = posixpath.basename(package_url)
     url = urlopen(package_url)
     with closing(url):
         data = url.read()
     # TODO: digest validation
-    return request.db.upload(filename, six.BytesIO(data), package_name), data
+    return (
+        request.db.upload(filename, six.BytesIO(data), name=package_name, metadata=package_metadata),
+        data
+    )
 
 
 @view_config(context=APIPackageFileResource, request_method="GET", permission="read")
@@ -103,7 +106,12 @@ def download_package(context, request):
         if dist is None:
             return HTTPNotFound()
         LOG.info("Caching %s from %s", context.filename, request.fallback_simple)
-        package, data = fetch_dist(request, dist.name, source_url)
+
+        # we only cache the requires_python field
+        metadata = {
+            'requires_python' : dist.metadata.dictionary.get('requires_python')
+        }
+        package, data = fetch_and_cache_dist(request, dist.name, source_url, package_metadata=metadata)
         disp = CONTENT_DISPOSITION.tuples(filename=package.filename)
         request.response.headers.update(disp)
         cache_control = CACHE_CONTROL.tuples(
@@ -138,6 +146,9 @@ def download_package(context, request):
 @argify
 def upload_package(context, request, content):
     """ Upload a package """
+    # TODO: fix in future to support metadata? more work than just this place. should be
+    # unnecessary for now since we are dual py2/py3 support and there are other ways for us
+    # to control our own packages
     try:
         return request.db.upload(content.filename, content.file, name=context.name)
     except ValueError as e:  # pragma: no cover
@@ -219,11 +230,14 @@ def fetch_requirements(request, requirements, wheel=True, prerelease=False):
     if not request.access.can_update_cache():
         return HTTPForbidden()
     packages = []
+    # pep 508 doesn't seem to be fully implemented in distlib, i.e. `; python_version < "2.7"` probably
+    # doesn't work using the default locator
     for line in requirements.splitlines():
         dist = request.locator.locate(line, prerelease, wheel)
         if dist is not None:
             try:
-                packages.append(fetch_dist(request, dist.name, dist.source_url)[0])
+                metadata = dict(requires_python=dist.metadata.dictionary['requires_python'])
+                packages.append(fetch_and_cache_dist(request, dist.name, dist.source_url, metadata)[0])
             except ValueError:
                 pass
     return {"pkgs": packages}

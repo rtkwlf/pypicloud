@@ -31,6 +31,7 @@ def upload(request, content, name=None, version=None, summary=None):
         if not request.access.has_permission(name, "write"):
             return request.forbid()
         try:
+            # will not fix this for now
             return request.db.upload(
                 content.filename,
                 content.file,
@@ -133,18 +134,21 @@ def package_versions_json(context, request):
     return response
 
 
-def create_template_dict_entry(url, python_requires=None):
+def create_template_dict_entry(url, requires_python):
     """ Create a dict entry used by the template, given the required information """
     result = {}
     result['url'] = url
-    if python_requires:
-        result['python_requires'] = python_requires
+    if requires_python:
+        result['requires_python'] = requires_python
     return result
 
 
 def package_to_template_dict_entry(request, package):
     """ Convert a package to a dict entry used by the template """
-    return create_template_dict_entry(package.get_url(request), getattr(package, 'python_requires', None))
+    # unfortunately, in the case that we have an old DB without the metadata, or we regenerate it
+    # on startup from the backend storage, there is no metadata available, and thus
+    # requires_python may not be present
+    return create_template_dict_entry(package.get_url(request), package.data.get('requires_python'))
 
 
 def get_fallback_packages(request, package_name, redirect=True):
@@ -193,6 +197,23 @@ def _redirect(context, request):
     return HTTPFound(location=redirect_url)
 
 
+def update_db_entry_with_metadata(request, packages, filename, metadata):
+    # this is a hack. we have a cache built prior to the metadata being used, or we
+    # rebuilt the cache from storage and don't have metadata. so we should
+    # update our local copy of it
+    for package in packages:
+        if package.filename == filename:
+            LOG.debug('updating metadata in DB for %s', package.filename)
+            if not metadata.get('requires_python'):
+                # dynamoDB doesn't support empty strings
+                metadata.pop('requires_python', None)
+
+            package.data = metadata
+            request.db.save(package)
+            return
+    LOG.error('Could not find entry for %s in cache. Metadata will not be updated', filename)
+
+
 def _simple_redirect(context, request):
     """ Service /simple with fallback=redirect """
     normalized_name = normalize_name(context.name)
@@ -223,8 +244,8 @@ def _simple_redirect_always_show(context, request):
             pkgs = get_fallback_packages(request, context.name)
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls
-            for filename, url in six.iteritems(stored_pkgs):
-                pkgs[filename] = url
+            for filename, metadata in six.iteritems(stored_pkgs):
+                pkgs[filename]['url'] = metadata['url']
             return _pkg_response(pkgs)
     else:
         return _redirect(context, request)
@@ -271,17 +292,19 @@ def _simple_cache_always_show(context, request):
                 pkgs = get_fallback_packages(request, context.name)
                 stored_pkgs = packages_to_dict(request, packages)
                 # Overwrite existing package urls
-                for filename, url in six.iteritems(stored_pkgs):
-                    pkgs[filename] = url
+                for filename, stored_metadata in six.iteritems(stored_pkgs):
+                    pkgs[filename]['url'] = stored_metadata['url']
                 return _pkg_response(pkgs)
             else:
                 return request.request_login()
         else:
             pkgs = get_fallback_packages(request, context.name, False)
             stored_pkgs = packages_to_dict(request, packages)
-            # Overwrite existing package urls
-            for filename, url in six.iteritems(stored_pkgs):
-                pkgs[filename] = url
+            # Overwrite existing package urls and update DB with metadata if not already
+            for filename, stored_metadata in six.iteritems(stored_pkgs):
+                pkgs[filename]['url'] = stored_metadata['url']
+                if pkgs[filename] != stored_metadata:
+                    update_db_entry_with_metadata(request, packages, filename, pkgs[filename])
             return _pkg_response(pkgs)
     else:
         if not request.access.can_update_cache():

@@ -6,6 +6,7 @@ import re
 import time
 
 import distlib.locators
+import distlib.metadata
 import logging
 import six
 from distlib.database import Distribution
@@ -14,6 +15,13 @@ from distlib.metadata import Metadata
 from distlib.util import split_filename, urljoin, ensure_slash
 from distlib.wheel import Wheel
 from six.moves.urllib.parse import urlparse  # pylint: disable=F0401,E0611
+
+
+# this is quite dirty, but the old implementation scraping the simple API wasn't doing any validation
+# anyways (it wasn't loading data into the `Metadata` class).
+# this is needed because package versions don't necessarily follow the recommended PEP version scheme and this
+# was causing the version regex to fail
+distlib.metadata.Metadata._validate_mapping = lambda *args, **kwargs: True
 
 
 LOG = logging.getLogger(__name__)
@@ -123,9 +131,13 @@ class EnhancedPyPIJSONLocator(Locator):
                     continue    # already done
                 data3 = copy.deepcopy(d['info'])
                 data3.update({'version': version})
-                if len(infos)>0:
-                    data3.update({'requires_python': infos[0].get('requires_python')})
-                # TODO(jjekir) python_version?
+
+                data3.pop('requires_python', None)
+                if len(infos) > 0:
+                    # this assumes all packages of the same version have the same requires_python metadata,
+                    # which appears to be a valid assumption from a number of packages that were checked
+                    data3.update({'requires_python': infos[0]['requires_python']})
+
                 omd = Metadata(scheme=self.scheme, mapping=data3)
                 odist = Distribution(omd)
                 odist.locator = self
