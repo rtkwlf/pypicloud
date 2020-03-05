@@ -197,18 +197,14 @@ def _redirect(context, request):
     return HTTPFound(location=redirect_url)
 
 
-def update_db_entry_with_metadata(request, packages, filename, metadata):
+def update_db_entry_with_metadata(request, packages, filename, pkg_requires_python):
     # this is a hack. we have a cache built prior to the metadata being used, or we
     # rebuilt the cache from storage and don't have metadata. so we should
     # update our local copy of it
     for package in packages:
         if package.filename == filename:
             LOG.debug('updating metadata in DB for %s', package.filename)
-            if not metadata.get('requires_python'):
-                # dynamoDB doesn't support empty strings
-                metadata.pop('requires_python', None)
-
-            package.data = metadata
+            package.data['requires_python'] = pkg_requires_python
             request.db.save(package)
             return
     LOG.error('Could not find entry for %s in cache. Metadata will not be updated', filename)
@@ -300,11 +296,13 @@ def _simple_cache_always_show(context, request):
         else:
             pkgs = get_fallback_packages(request, context.name, False)
             stored_pkgs = packages_to_dict(request, packages)
-            # Overwrite existing package urls and update DB with metadata if not already
+            # Overwrite existing package urls and update DB with requires_python metadata if not already present
             for filename, stored_metadata in six.iteritems(stored_pkgs):
                 pkgs[filename]['url'] = stored_metadata['url']
-                if pkgs[filename] != stored_metadata:
-                    update_db_entry_with_metadata(request, packages, filename, pkgs[filename])
+                pkg_requires_python = pkgs[filename].get('requires_python')
+                # dynamoDB doesn't support empty strings
+                if pkg_requires_python and pkg_requires_python != stored_metadata.get('requires_python'):
+                    update_db_entry_with_metadata(request, packages, filename, pkg_requires_python)
             return _pkg_response(pkgs)
     else:
         if not request.access.can_update_cache():
