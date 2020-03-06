@@ -236,7 +236,7 @@ def fetch_requirements(request, requirements, wheel=True, prerelease=False):
         dist = request.locator.locate(line, prerelease, wheel)
         if dist is not None:
             try:
-                metadata = dict(requires_python=dist.metadata.dictionary['requires_python'])
+                metadata = dict(requires_python=dist.metadata.dictionary.get('requires_python'))
                 packages.append(fetch_and_cache_dist(request, dist.name, dist.source_url, metadata)[0])
             except ValueError:
                 pass
