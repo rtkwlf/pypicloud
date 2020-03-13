@@ -289,7 +289,7 @@ def _simple_cache_always_show(context, request):
                 stored_pkgs = packages_to_dict(request, packages)
                 # Overwrite existing package urls
                 for filename, stored_metadata in six.iteritems(stored_pkgs):
-                    pkgs[filename]['url'] = stored_metadata['url']
+                    pkgs[filename] = stored_metadata
                 return _pkg_response(pkgs)
             else:
                 return request.request_login()
