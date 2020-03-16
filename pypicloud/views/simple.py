@@ -241,7 +241,7 @@ def _simple_redirect_always_show(context, request):
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls
             for filename, metadata in six.iteritems(stored_pkgs):
-                pkgs[filename]['url'] = metadata['url']
+                pkgs[filename] = metadata
             return _pkg_response(pkgs)
     else:
         return _redirect(context, request)
@@ -298,7 +298,7 @@ def _simple_cache_always_show(context, request):
             stored_pkgs = packages_to_dict(request, packages)
             # Overwrite existing package urls and update DB with requires_python metadata if not already present
             for filename, stored_metadata in six.iteritems(stored_pkgs):
-                pkgs[filename]['url'] = stored_metadata['url']
+                pkgs[filename] = stored_metadata
                 pkg_requires_python = pkgs[filename].get('requires_python')
                 # dynamoDB doesn't support empty strings
                 if pkg_requires_python and pkg_requires_python != stored_metadata.get('requires_python'):
